@@ -91,7 +91,45 @@ def interpolate_y(x, xq, y, yq):
 
         xqpi_cur = (x_high - xq_cur) / (x_high - x_low)
         yq[xqi_cur] = xqpi_cur * y[xi] + (1 - xqpi_cur) * y[xi + 1]
+
+@cfunc('float64[:](float64[:], float64[:], float64[:])', nopython=True)
+def interpolate_y_cfunc(x, xq, y):
+    """Efficient linear interpolation exploiting monotonicity.
+
+    Adapted from Adrien's notebook (Auclert et al 2021)
+
+    Complexity O(n+nq), so most efficient when x and xq have comparable number of points.
+    Extrapolates linearly when xq out of domain of x.
+
+    Parameters
+    ----------
+    x  : array (n), ascending data points
+    xq : array (nq), ascending query points
+    y  : array (n), data points
+
+    Returns
+    ----------
+    yq : array (nq), interpolated points
+    """
+    nxq, nx = xq.shape[0], x.shape[0]
+    yq = np.zeros(xq.shape)
+    xi = 0
+    x_low = x[0]
+    x_high = x[1]
+    for xqi_cur in range(nxq):
+        xq_cur = xq[xqi_cur]
+        while xi < nx - 2:
+            if x_high >= xq_cur:
+                break
+            xi += 1
+            x_low = x_high
+            x_high = x[xi + 1]
+
+        xqpi_cur = (x_high - xq_cur) / (x_high - x_low)
+        yq[xqi_cur] = xqpi_cur * y[xi] + (1 - xqpi_cur) * y[xi + 1]
     
+    return yq
+   
 @guvectorize(['void(float64[:], float64[:], uint32[:],uint32[:],float64[:])'], '(n),(nq)->(nq),(nq),(nq)', nopython=True)
 def interpolate_coord(x, xq, xqi, xqia, xqpi):
 
