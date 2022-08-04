@@ -1,7 +1,6 @@
 ########################################################################################################################
 # ROUTINES TO ITERATE A DISTRIBUTION
 ########################################################################################################################
-
 import numpy as np 
 from numba import njit,cfunc
 
@@ -116,3 +115,87 @@ def IdealPriceIndex(prices,Distribution,elasticity):
 # ------------------------------------------------------------------------------------------------------------
 # TO ADD: Routines for Hopenhayn/Rogerson style models 
 # ------------------------------------------------------------------------------------------------------------
+@njit('f8[:,:](f8[:,:],f8[:,:],f8[:,:],f8,f8[:,:],f8[:,:])') 
+def DynamicInvestment_Discrete_Step(VNext,profit,ZTrans,discount,invest,AdjCost):
+    '''
+    Given a value function for next period, current profit function and Transition, One VFI Step
+    ********************************************************************************************
+    One step of a VFI algorithm to solve the problem 
+    V(k,Z) = max_k' pi(k,Z) + qk * ((1-pdelta)*k - k') - CapAdjCost(k',k) + discount*E [V(k',Z') | Z]
+
+    VNext: np.ndarray((nZ,nK)), next period's value function
+    profit: np.ndarray((nZ,nK)), corresponds to pi(k,Z), solved static profits substituting for statically optimally chosen inputs. 
+    invest: np.ndarray((nK,nK)), corresponds to qk * ((1-pdelta)*k - k')
+    AdjCost: np.ndarray((nK,nK)), Adjustment costs to go from kgrid[j] -> kgrid[i]
+    ZTrans: np.ndarray((nZ,nZ)), Transition matrix
+
+    '''
+
+    # Preallocate
+    V = np.zeros(VNext.shape)
+    nZ,nK = V.shape
+
+    # Expected Value Next Period 
+    EVNext = discount*(ZTrans @ VNext)
+
+    # Iteration
+    for iZ in range(nZ):
+        
+        # Objective function to be maximized over vertical axis
+        objective = np.tile(profit[iZ],(nK,1)) - invest - AdjCost + np.tile(EVNext[iZ][:,np.newaxis],(1,nK))
+        
+        # Perform Maximization
+        V[iZ] = objective.max(0)
+
+    return V 
+
+def DynamicInvestmentCobbDouglas_Discrete(w,qk,k,Z,ZTrans,palphaK,palphaN,pdelta,discount,costParams,costSpec='nonconvex'):
+    '''
+    Given factor prices and grids, solve a dynamic firm problem. 
+    ************************************************************
+    Solve the problem 
+    
+    V(k,Z) = max_k' pi(k,Z) + qk * ((1-pdelta)*k - k') - CapAdjCost(k',k) + discount*E [V(k',Z') | Z]
+
+    where
+    
+    pi(k,Z) = max_n Z k^palphaK n^{1-palphaN} - w*N
+
+    w, rk: float64,float64, real wages, interest rates
+    k,Z: ndarray((nZ,nk)),ndarray((nZ,nk)), tfp, capital grids. 
+    kDense,ZDense: ndarray((nZ,nk)),ndarray((nZ,nk))
+    '''
+
+    # Step 0: Extract sizes and define some objects
+    nZ,nK = k.shape
+    ktoday = np.tile(k[0],(nK,1))
+    knext = np.tile(k[0][:,np.newaxis],(1,nK))
+    inv = qk*(knext-((1-pdelta)*ktoday))
+    if costSpec == 'convex':
+        AdjCost = (costParams[0]/2)*((inv/ktoday)**2)
+    elif costSpec == 'nonconvex':
+        AdjCost = (costParams[0]/2)*((inv/ktoday)**2) + costParams[1] * (inv != 0)
+    elif costSpec == 'nonconvex_asymmetric':
+        AdjCost = (costParams[0]/2)*((inv/ktoday)**2) + costParams[1] * (inv < 0) + costParams[2] * (inv > 0)
+
+    # Step 1: Setup Profit Function on box for regular state
+    n =  ( w * (k**(-palphaK))/(Z*palphaN) ) **(1/(palphaN-1) )
+    y = Z * (k**palphaK) * (n**palphaN)
+    pi = y - w * n
+
+    # Step 2: Define One Iteration Step
+    def Iteration(VNext): 
+        # Preallocate
+        V = np.zeros(VNext.shape)
+        # Next period's expected value
+        EVNext = discount * (ZTrans @ VNext)
+        for iZ in range(nZ):
+            # Objective function to be maximized over vertical axis
+            objective = np.tile(pi[iZ],(nK,1)) - inv - AdjCost + np.tile(EVNext[iZ][:,np.newaxis],(1,nK))
+            # Perform Maximization
+            iMax = objective.argmax(0)
+            V[iZ] = objective.max(0)
+        return V 
+
+
+    return 
