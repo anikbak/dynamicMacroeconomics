@@ -79,7 +79,7 @@ def StateSpaces(StatenamesX,StatenamesZ,minvecX,maxvecX,nvecX,rhovecZ,sigvecZ,mu
     * minvecX,maxvecX,nvecX: List-Like containing min, max and number of elements in each endogenous state variable.
     * rhovecZ,sigvecZ,nvecZ,mvecZ: persistence, shock variance, number of elements and number of sd for approximations to each exog. state variable.
     * typecombvecX: either "matlab" or "python".
-    * typevecZ: list with length = # exog variables with each element either "markov" or "rouwenhorst"
+    * typevecZ: list with length = # exog variables with each element either "tauchen" or "rouwenhorst"
 
     '''
 
@@ -179,7 +179,7 @@ def StateSpaces(StatenamesX,StatenamesZ,minvecX,maxvecX,nvecX,rhovecZ,sigvecZ,mu
     # Step 3: Construct "Total" Transition Matrix P such that
     # P[i,j] = Pr(z_j | z_i) where z_j is the vector of Z-variables at the j'th point.
     if nstatesZ == 1: 
-        TransTotal = TransZ[0]
+        TransTotal = TransZ[StatenamesZ[0]]
 
     else:
 

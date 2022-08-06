@@ -1,7 +1,6 @@
 ########################################################################################################################
 # ROUTINES TO ITERATE A DISTRIBUTION
 ########################################################################################################################
-
 import numpy as np
 from numba import njit 
 from routines.interpolation import interpolate_coord_cfunc
@@ -17,7 +16,7 @@ def DistributionStep1D(Dist,Policy,X,Trans,Mass,Exit,Entry):
     Trans: np.ndarray((nZ,nZ)), transition matrix P such that P[i,j] = Pr(X' = X_j | X = X_i)
     Mass: np.float64, total mass of firms at period t+1
     Exit: np.uint32((nZ,nX)) of 1's at states at which agents exit the economy after end of date t and before start of date t+1
-    Entry: np.uint32((nZ,nX)) of *mass* of agents entering the economy after end of date t and before start of date t+1
+    Entry: np.float64((nZ,nX)) of *mass* of agents entering the economy after end of date t and before start of date t+1
     '''
 
     # Step 1: Project Policy onto state space 
@@ -42,7 +41,7 @@ def DistributionStep1D(Dist,Policy,X,Trans,Mass,Exit,Entry):
         DistNew[x,iLi] += wL[x,y] * Dist[x,y] 
         DistNew[x,iHi] += wH[x,y] * Dist[x,y]
     
-    DistNew = Trans.T @ DistNew
+    DistNew = np.ascontiguousarray(Trans.T) @ np.ascontiguousarray(DistNew)
 
     # Entry 
     DistNew = DistNew + Entry
@@ -69,8 +68,8 @@ def DistributionStep2D(Dist,Policy1,Policy2,grid1,grid2,Trans,Mass,Exit,Entry):
     # Step 1: Interpolation of policy
     iL1,iH1,wL1,iL2,iH2,wL2 = np.zeros(Policy1.shape,dtype="uint32"),np.zeros(Policy1.shape,dtype="uint32"),np.zeros(Policy1.shape,dtype="float64"),np.zeros(Policy1.shape,dtype="uint32"),np.zeros(Policy1.shape,dtype="uint32"),np.zeros(Policy1.shape,dtype="float64")
     for iZ in range(nZ):
-        iL1,iH1,wL1 = interpolate_coord_cfunc(grid1,Policy1[iZ])
-        iL2,iH2,wL2 = interpolate_coord_cfunc(grid2,Policy2[iZ])
+        iL1[iZ],iH1[iZ],wL1[iZ] = interpolate_coord_cfunc(grid1,Policy1[iZ])
+        iL2[iZ],iH2[iZ],wL2[iZ] = interpolate_coord_cfunc(grid2,Policy2[iZ])
     
     wH1,wH2 = 1-wL1,1-wL2
 
@@ -96,15 +95,15 @@ def DistributionStep2D(Dist,Policy1,Policy2,grid1,grid2,Trans,Mass,Exit,Entry):
         DistNew[x,iHLy] += Dist[x,y] * wHL[x,y]
         DistNew[x,iHHy] += Dist[x,y] * wHH[x,y]
 
-    DistNew = Trans.T @ DistNew 
+    DistNew = np.ascontiguousarray(Trans.T) @ np.ascontiguousarray(DistNew) 
 
     # Step 5: Entry
     DistNew = DistNew + Entry 
     return DistNew * Mass / DistNew.sum()
 
+@njit 
 def DistributionPath1D(Dist0,PolicyPath,X,Trans,Mass,ExitPath,EntryPath):
-    '''
-    '''
+
     T,nZ,nX = PolicyPath.shape 
     DistPath = np.zeros(PolicyPath.shape)
     
@@ -117,10 +116,10 @@ def DistributionPath1D(Dist0,PolicyPath,X,Trans,Mass,ExitPath,EntryPath):
     
     return DistPath 
 
+@njit 
 def DistributionPath2D(Dist0,Policy1Path,Policy2Path,grid1,grid2,Trans,Mass,ExitPath,EntryPath):
-    '''
-    '''
-    T,nZ,nX = Policy1Path.shape
+
+    T,_,_ = Policy1Path.shape
     DistPath = np.zeros(Policy1Path.shape)
     
     # Assign date 0
