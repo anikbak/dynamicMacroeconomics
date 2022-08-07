@@ -1,5 +1,5 @@
 ########################################################################################################################
-# ROUTINES TO SOLVE HOUSEHOLD PROBLEMS
+# ROUTINES TO SOLVE HOUSEHOLD PROBLEMS FEATURING INCOME FLUCTUATION PROBLEMS
 ########################################################################################################################
 import numpy as np 
 from numba import njit,cfunc
@@ -9,19 +9,19 @@ from routines.interpolation import *
 # Generalized One-Asset Income Fluctuation Problem Block: Endogenous Gridpoint Method Steps
 # ------------------------------------------------------------------------------------------------------------
 @njit("UniTuple(float64[:,:],3)(float64[:,:],float64[:,:],float64[:,:],float64[:,:],float64[:,:],float64,float64,float64,float64)") 
-def EGMStep(mu_next,a_grid,e_grid,nl_inc_grid,eTrans,pbeta,eis,r_next,w):
+def EGMStep(mu_next,asset,inc,nl_incgrid,eTrans,pbeta,eis,r_next,w):
     '''
     One step of a one-dimensional EGM Step with CRRA utility and inelastic labor supply
     ***********************************************************************************
-    Consider a household whose assets live on a grid a_grid of dimension (nA,). 
+    Consider a household whose assets live on a grid asset of dimension (nA,). 
 
     mu_next: np.ndarray((nE,nA))
         marginal utility next period
-    a_grid: np.ndarray((nE,nA))  
+    asset: np.ndarray((nE,nA))  
         each row is the asset grid
-    e_grid: np.ndarray((nE,nA))
+    inc: np.ndarray((nE,nA))
         each column is the labor efficiency shock
-    nl_inc_grid: np.ndarray((nE,nA))
+    nl_incgrid: np.ndarray((nE,nA))
         net non-labor income in the current period
     eTrans: np.ndarray((nE,nE))
         Transition matrix, eTrans[i,j] = Pr(e'=e[j] | e=e[i])
@@ -44,35 +44,35 @@ def EGMStep(mu_next,a_grid,e_grid,nl_inc_grid,eTrans,pbeta,eis,r_next,w):
 
     # Evaluate current marginal utility and consumption using Euler equation
     MU_today = pbeta * (1+r_next) * EMU_next
-    cons_next_grid = MU_today**(-eis)
+    cons_nextgrid = MU_today**(-eis)
 
     # Cash on Hand
-    cash_on_hand = (1+r_next)*a_grid + w*e_grid + nl_inc_grid
+    cash_on_hand = (1+r_next)*asset + w*inc + nl_incgrid
     
     # Current assets as a function of current cash on hand 
-    a_grid_today = np.zeros((nZ,nE))
+    asset_today = np.zeros((nZ,nE))
     for iZ in range(nZ):
-        a_grid_today[iZ] = interpolate_y_cfunc(cons_next_grid+a_grid,cash_on_hand,a_grid)
+        asset_today[iZ] = interpolate_y_cfunc(cons_nextgrid+asset,cash_on_hand,asset)
     
-    a_grid_today = np.maximum(a_grid_today,a_grid[0][0])
-    cons = cash_on_hand - a_grid_today
+    asset_today = np.maximum(asset_today,asset[0][0])
+    cons = cash_on_hand - asset_today
 
-    return MU_today,cons,a_grid_today
+    return MU_today,cons,asset_today
 
 @cfunc("UniTuple(float64[:,:],4)(float64[:,:],float64[:,:],float64[:,:],float64[:,:],float64[:,:],float64,float64,float64,float64,float64,float64,float64,float64)") 
-def EGMStep_EndogLabor(mu_next,a_grid,e_grid,nl_inc_grid,eTrans,pbeta,eis,frisch,ndisutil,r_next,w,ntaxrate):
+def EGMStep_EndogLabor(mu_next,asset,inc,nl_incgrid,eTrans,pbeta,eis,frisch,ndisutil,r_next,w,ntaxrate):
     '''
     One step of a one-dimensional EGM Step with CRRA utility and inelastic labor supply
     ***********************************************************************************
-    Consider a household whose assets live on a grid a_grid of dimension (nA,). 
+    Consider a household whose assets live on a grid asset of dimension (nA,). 
 
     mu_next: np.ndarray((nE,nA))
         marginal utility next period
-    a_grid: np.ndarray((nE,nA))  
+    asset: np.ndarray((nE,nA))  
         each row is the asset grid
-    e_grid: np.ndarray((nE,nA))
+    inc: np.ndarray((nE,nA))
         each column is the labor efficiency shock
-    nl_inc_grid: np.ndarray((nE,nA))
+    nl_incgrid: np.ndarray((nE,nA))
         net non-labor income in the current period
     eTrans: np.ndarray((nE,nE))
         Transition matrix, eTrans[i,j] = Pr(e'=e[j] | e=e[i])
@@ -102,25 +102,25 @@ def EGMStep_EndogLabor(mu_next,a_grid,e_grid,nl_inc_grid,eTrans,pbeta,eis,frisch
     MU_today = pbeta * (1+r_next) * EMU_next
 
     # Consumption, labor on next grid
-    cons_next_grid = MU_today**(-eis)
-    n_next_grid = (w*(1-ntaxrate) * MU_today / ndisutil)**frisch
+    cons_nextgrid = MU_today**(-eis)
+    n_nextgrid = (w*(1-ntaxrate) * MU_today / ndisutil)**frisch
 
     # Interpolation to get today's assets
     what = w * (1-ntaxrate)
-    NR = cons_next_grid + a_grid - nl_inc_grid - what*e_grid*n_next_grid
-    DR = (1+r_next)*a_grid
-    c = interpolate_y_cfunc(NR,DR,cons_next_grid) 
-    n = interpolate_y_cfunc(NR,DR,n_next_grid)
-    a = (1+r_next)*a_grid + nl_inc_grid + what*e_grid*n - c
+    NR = cons_nextgrid + asset - nl_incgrid - what*inc*n_nextgrid
+    DR = (1+r_next)*asset
+    c = interpolate_y_cfunc(NR,DR,cons_nextgrid) 
+    n = interpolate_y_cfunc(NR,DR,n_nextgrid)
+    a = (1+r_next)*asset + nl_incgrid + what*inc*n - c
 
-    indices_binds = np.nonzero(a<a_grid[0][0])
-    a[indices_binds] = a_grid[0][0]
+    indices_binds = np.nonzero(a<asset[0][0])
+    a[indices_binds] = asset[0][0]
     
     # Solve for the optimal MU when constraint binds: system of two equations
     if len(indices_binds[0])>0 or len(indices_binds[1])>0:
         for i in range(len(indices_binds[0])):
             ix,iy = indices_binds[0],indices_binds[1]
-            nl_inc = nl_inc_grid[ix][iy] + (1+r_next)*a[ix][iy] - a[0][0]
+            nl_inc = nl_incgrid[ix][iy] + (1+r_next)*a[ix][iy] - a[0][0]
             MU_ini = MU_today[ix][iy]
             c[ix][iy],n[ix,iy] = StaticLaborSupplyFocSolve(MU_ini,w,ntaxrate,eis,ndisutil,frisch,nl_inc)
 
@@ -132,11 +132,11 @@ def StaticLaborSupplyFocSolve(MU0,w,ntaxrate,eis,ndisutil,frisch,nl_inc,maxit=10
     given mu_c, w, ntaxrate solve for c,n at each point of state space from static foc. That is, 
     solve the problem
 
-    max_{c,n} k_c * c**(1-1/eis) - k_n * ndisutil*(n**(1+1/frisch)) st c = (1-ntaxrate)*w*n + nl_inc_grid
+    max_{c,n} k_c * c**(1-1/eis) - k_n * ndisutil*(n**(1+1/frisch)) st c = (1-ntaxrate)*w*n + nl_incgrid
 
     Two equations: 
     **************
-    c = (1-ntaxrate)*w*n + nl_inc_grid
+    c = (1-ntaxrate)*w*n + nl_incgrid
     (1-ntaxrate)*w*(c**(-1/eis)) = ndisutil*(n**(1/frisch))
 
     Use an iteration scheme on the second foc. Following Auclert et al (2021), solve in log MU space.
@@ -162,3 +162,7 @@ def StaticLaborSupplyFocSolve(MU0,w,ntaxrate,eis,ndisutil,frisch,nl_inc,maxit=10
 
     C,N = np.exp(logMU*(-eis)),(what * np.exp(logMU) / ndisutil) ** frisch
     return C,N
+
+# ------------------------------------------------------------------------------------------------------------
+# Generalized Two-Asset Portfolio Choice Block: Endogenous Gridpoint Method Steps
+# ------------------------------------------------------------------------------------------------------------

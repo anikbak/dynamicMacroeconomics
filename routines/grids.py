@@ -202,3 +202,20 @@ def StateSpaces(StatenamesX,StatenamesZ,minvecX,maxvecX,nvecX,rhovecZ,sigvecZ,mu
                     TransTotal[i,j] = TransTotal[i,j] * TransZ[name][idik,idjk]
 
     return gridX,StateX,gridZ,StateZ,TransZ,TransTotal
+
+def StationaryDistribution(Transition,maxit = 1000,tol=1e-7):
+    # Check connectedness of Transition Matrix: Wielandt's Theorem
+    n = Transition.shape[0]
+    m = 1 + (n-1)**2
+    Tm = np.linalg.matrix_power(Transition,m)
+    count_zero = (Tm<=1e-16).sum()
+    if count_zero != 0:
+        print(f'Transition Matrix may not be ergodic!')
+    # Initialize
+    Stationary = Transition.copy() 
+    it,err = 0,1
+    while (err>=tol) & (it<=maxit):
+        Stationary = Stationary @ Transition
+        err = np.max(np.abs(Transition[0]-Transition[1])/(1+Transition[0]))
+        it += 1
+    return Stationary[0] 
