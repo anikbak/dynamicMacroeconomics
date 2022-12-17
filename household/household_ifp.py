@@ -166,3 +166,24 @@ def StaticLaborSupplyFocSolve(MU0,w,ntaxrate,eis,ndisutil,frisch,nl_inc,maxit=10
 # ------------------------------------------------------------------------------------------------------------
 # Generalized Two-Asset Portfolio Choice Block: Endogenous Gridpoint Method Steps
 # ------------------------------------------------------------------------------------------------------------
+@njit
+def adjustmentCosts(a,anext,ra,chi):
+    '''
+    Adjustment cost for illiquid assets as in Auclert et al (2021). 
+    
+    Phi(a,a(-1)) = (chi1/chi2) * ((1+r_a)*a(-1) + chi0) * ( (a-(1+r_a)*a(-1))/((1+r_a)*a(-1) + chi0) )**(chi2)
+    
+    PhiDeriv1 = d Phi(.) / d a 
+    PhiDeriv2 = d Phi(.) / d a(-1)
+    '''
+
+    dr = (1+ra)*a + chi[0]
+    nr = anext - ((1+ra)*a)
+    signum = (nr>=0) + (nr<0)*(-1)
+
+    Phi = (chi[1]/chi[2]) * dr * ((np.abs(nr/dr))**chi[2])
+    PhiDeriv1 = (chi[1]) * dr * signum * (np.abs((nr/dr))**(chi[2]-1))
+    PhiDeriv2 = -(1+ra) * (PhiDeriv1 + (chi[2]-1)*Phi/dr)
+
+    return Phi, PhiDeriv1, PhiDeriv2
+
