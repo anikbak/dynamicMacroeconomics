@@ -244,3 +244,7 @@ def DynamicInvestmentCobbDouglas_Discrete_SteadyState(w,qk,k,Z,ZTrans,palphaK,pa
         it += 1
     
     return V,ix
+
+# ------------------------------------------------------------------------------------------------------------
+# Routines for Technology Adoption Models
+# ------------------------------------------------------------------------------------------------------------
