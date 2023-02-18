@@ -95,11 +95,9 @@ def KORVFactorDemands(ws,wu,rk,Z,KORVlam,KORVmu,KORVsig,KORVrho,Bs=1,Bu=1,Bk=1):
     '''
 
     # Price Indices
-    esig = 1/(1-KORVsig) 
     erho = 1/(1-KORVrho)
     pG = CESprice(ws/Bs,rk/Bk,1-KORVlam,KORVlam,erho)
-    pY = CESprice(wu/Bu,pG,KORVmu,1-KORVmu,esig)/Z
-
+    
     # Demand Curves assuming perfect competition
     LSbyK = (Bk/Bs)*(((ws/rk)/(Bs/Bk))**(-KORVrho))*(1-KORVlam)/KORVlam
     LUbyK = (Bk/Bu)*((wu/pG)**(-KORVsig))*((pG/rk)**(-KORVrho))*KORVmu/(1-KORVmu)
