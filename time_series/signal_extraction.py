@@ -97,7 +97,7 @@ def find_stationary_distribution_multivariateAR1(Phi,R,Sig):
     Lam = solve_discrete_lyapunov(Phi,R @ Sig @ R.T)
     return Lam 
 
-def KalmanFilter(N,T,Observations,Mu,A,H,Phi,R,Sig,InitState=[],InitVariance=[]):
+def KalmanFilter(T,Observations,Mu,A,H,Phi,R,Sig,InitState=[],InitVariance=[]):
     '''
     Consider a generalized linear filtering problem. The state-space model is 
 
@@ -148,18 +148,20 @@ def KalmanFilter(N,T,Observations,Mu,A,H,Phi,R,Sig,InitState=[],InitVariance=[])
     print(f' and InitVariance should be {kz} x {kz}, and is actually {InitVariance.shape}')
 
     # Preallocate 
-    dimK,dimV,dimE = (T,kz),(T,kz,kz),(T,)
-    KalmanGains,OneStepCondMeans,OneStepVariances,Likelihood_vec = np.zeros(dimK),np.zeros(dimE),np.zeros(dimV),np.zeros(T)
+    dimK,dimV,dimE,dimY = (T,kz),(T,kz,kz),(T,),(T,ky)
+    KalmanGains,OneStepCondMeans,OneStepVariances,Likelihood_vec,OneStepPredictions = np.zeros(dimK),np.zeros(dimE),np.zeros(dimV),np.zeros(T),np.zeros(dimY)
     
     # First Period
     OneStepCondMeans[0] = InitState
     OneStepVariances[0] = InitVariance
+    OneStepPredictions
 
     # Begin Iterations
     for t in range(T):
 
         # Calculate Likelihood 
         ydist_mean = Mu + A @ OneStepCondMeans[t]
+        OneStepPredictions[t] = ydist_mean
         ydist_vcov = A @ OneStepVariances[t] @ A.T + H @ H.T 
         Likelihood_vec[t] = mvn_scipy(ydist_mean,ydist_vcov).pdf(Observations[t])
 
@@ -179,4 +181,5 @@ def KalmanFilter(N,T,Observations,Mu,A,H,Phi,R,Sig,InitState=[],InitVariance=[])
     # Calculate log likelihood 
     LogLikelihood = np.log(Likelihood_vec).sum()
 
-    return OneStepCondMeans,OneStepVariances,KalmanGains,Likelihood_vec,LogLikelihood 
+    return OneStepCondMeans,OneStepVariances,OneStepPredictions,KalmanGains,Likelihood_vec,LogLikelihood 
+
